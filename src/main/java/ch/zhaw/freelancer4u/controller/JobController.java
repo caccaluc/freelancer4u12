@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,7 +34,7 @@ public class JobController {
 
     @Autowired
     RoleService roleService;
-    
+
     @Autowired
     OpenAiChatModel chatModel;
 
@@ -46,7 +47,8 @@ public class JobController {
         if (!companyService.companyExists(cDTO.getCompanyId())) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
-        var generatedTitle = chatModel.call(new Prompt("Erstelle einen kurzen Titel für den Job mit der Beschreibung:  " + cDTO.getDescription()));
+        var generatedTitle = chatModel.call(
+                new Prompt("Erstelle einen kurzen Titel für den Job mit der Beschreibung:  " + cDTO.getDescription()));
         var title = generatedTitle.getResult().getOutput().getContent();
         Job jDAO = new Job(title, cDTO.getDescription(), cDTO.getJobType(), cDTO.getEarnings(), cDTO.getCompanyId());
         Job j = jobRepository.save(jDAO);
@@ -71,7 +73,7 @@ public class JobController {
             } else {
                 allJobs = jobRepository.findByJobType(type, PageRequest.of(pageNumber - 1, pageSize));
             }
-        }        
+        }
         return new ResponseEntity<>(allJobs, HttpStatus.OK);
     }
 
@@ -84,4 +86,25 @@ public class JobController {
         return ResponseEntity.status(HttpStatus.OK).body("DELETED");
     }
 
+    @GetMapping("/job/{id}")
+    public ResponseEntity<Job> getJobById(@PathVariable String id) {
+        var job = jobRepository.findById(id);
+        if (job.isEmpty()) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        return new ResponseEntity<>(job.get(), HttpStatus.OK);
+    }
+    
+    @DeleteMapping("/job/{id}")
+    public ResponseEntity<String> deleteJobById(@PathVariable String id) {
+        if (!roleService.userHasRole("admin")) {
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+        }
+        var job = jobRepository.findById(id);
+        if (job.isEmpty()) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        jobRepository.deleteById(id);
+        return ResponseEntity.status(HttpStatus.OK).body("DELETED");
+    }
 }
